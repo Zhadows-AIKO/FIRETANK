@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CyberFire · ระบบตรวจสอบถังดับเพลิง 2026</title>
+    <link rel="icon" href="data:,">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <script>
+    // ⭐ อ่าน WEB_APP_URL จาก query string (app.html ส่งมา)
+    (function() {
+        const params = new URLSearchParams(window.location.search);
+        const url = params.get('url');
+        if (url) {
+            window.CYBERFIRE_WEB_APP_URL = decodeURIComponent(url);
+            console.log('📥 รับ WEB_APP_URL จาก app.html');
+        }
+    })();
+    </script>
+</head>
+<body>
+<div class="main-container">
+
+    <!-- ===== REGISTER PANE ===== -->
+    <div id="registerPane" class="tab-pane active-pane">
+        <div class="dashboard-container">
+
+            <div class="dashboard-header">
+                <div class="title-section">
+                    <h2><i class="fas fa-chart-line"></i>ระบบบริหารจัดการถังดับเพลิง· ข้อมูลเรียลไทม์</h2>
+                    
+                </div>
+                <div class="action-buttons">
+                    <button class="btn-outline" id="refreshDashboardBtn"><i class="fas fa-sync-alt"></i> รีเฟรช</button>
+                    <button class="btn-primary" id="openAddModalBtn"><i class="fas fa-plus-circle"></i> ลงทะเบียนใหม่</button>
+                </div>
+            </div>
+
+            <!-- ⭐ STATS 5 การ์ด -->
+            <div class="stats-row stats-row-5">
+                <div class="stat-card">
+                    <div class="stat-icon"><i class="fas fa-fire-extinguisher"></i></div>
+                    <div class="stat-value" id="totalCount">0</div>
+                    <div class="stat-label">ถังทั้งหมด</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon"><i class="fas fa-industry"></i></div>
+                    <div class="stat-value" id="f1Total">0</div>
+                    <div class="stat-label">โรงงาน 1</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon"><i class="fas fa-industry"></i></div>
+                    <div class="stat-value" id="f2Total">0</div>
+                    <div class="stat-label">โรงงาน 2</div>
+                </div>
+                <div class="stat-card danger">
+                    <div class="stat-icon"><i class="fas fa-exclamation-triangle"></i></div>
+                    <div class="stat-value" id="expiredCount">0</div>
+                    <div class="stat-label">หมดอายุ (15 ปี)</div>
+                </div>
+                <div class="stat-card warning">
+                    <div class="stat-icon"><i class="fas fa-clock"></i></div>
+                    <div class="stat-value" id="warningCount">0</div>
+                    <div class="stat-label">ใกล้หมดอายุ (≤2 ปี)</div>
+                </div>
+            </div>
+
+            <!-- CHARTS -->
+            <div class="charts-row">
+                <div class="chart-card">
+                    <div class="chart-title"><i class="fas fa-chart-pie"></i> สัดส่วนประเภทถัง</div>
+                    <canvas id="typeChart"></canvas>
+                </div>
+                <div class="chart-card">
+                    <div class="chart-title"><i class="fas fa-chart-bar"></i> สถานะการใช้งาน</div>
+                    <canvas id="statusChart"></canvas>
+                </div>
+            </div>
+
+            <!-- FILTER -->
+            <div class="filter-bar">
+                <div class="filter-group">
+                    <input type="text" id="searchInput" placeholder="🔍 ค้นหา ID, โรงงาน, โซน">
+                    <select id="typeFilter">
+                        <option value="">🔥 ประเภททั้งหมด</option>
+                        <option>CO2</option>
+                        <option>BF 2000</option>
+                        <option>HALOTRION</option>
+                        <option>FORM</option>
+                    </select>
+                    <select id="statusFilter">
+                        <option value="">✨ สถานะทั้งหมด</option>
+                        <option value="ใช้งาน">ใช้งาน ✓</option>
+                        <option value="Stock">Stock</option>
+                        <option value="ปรับปรุง">ปรับปรุง</option>
+                        <!-- ⭐ ไม่มี "ทิ้งทำลาย" — ไม่แสดงในหน้านี้ -->
+                    </select>
+                </div>
+                <button id="resetFiltersBtn" class="reset-btn"><i class="fas fa-undo-alt"></i> รีเซ็ต</button>
+                <button class="btn-outline" id="toggleTableBtn"><i class="fas fa-table"></i> แสดงตาราง</button>
+            </div>
+
+            <!-- TABLE -->
+            <div class="table-wrapper">
+                <div class="table-header">
+                    <h3><i class="fas fa-list-ul"></i> รายการทะเบียนถังดับเพลิง</h3>
+                    <span id="recordCount" class="record-count">0 รายการ</span>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>โรงงาน</th>
+                                <th>โซน</th>
+                                <th>จุดติดตั้ง</th>
+                                <th>ประเภท</th>
+                                <th>ขนาด</th>
+                                <th>สถานะ</th>
+                                <th>ดู</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody">
+                            <tr><td colspan="8" style="text-align:center;"><i class="fas fa-spinner fa-pulse"></i> กำลังโหลด...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== VIEW TANK PANE ===== -->
+    <div id="viewTankPane" class="tab-pane">
+        <div class="view-tank-container">
+
+            <div class="vt-header">
+                <div class="vt-brand">
+                    <i class="fas fa-shield-halved"></i>
+                    <div>SIAM STEEL<br>SERVICE CENTER PLC</div>
+                </div>
+                <div class="vt-header-center">
+                    <h2 class="vt-title">ทะเบียนถังดับเพลิง</h2>
+                    <div class="vt-id-row">
+                        <label>ID</label>
+                        <span class="vt-id-value" id="vtId">-</span>
+                    </div>
+                </div>
+                <button class="vt-close" onclick="closeViewTank()" title="ปิด">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <div class="vt-body">
+                <div class="vt-col-left">
+                    <div class="vt-section">
+                        <h3 class="vt-section-title">รายละเอียดอุปกรณ์</h3>
+                        <div class="vt-info-list">
+                            <div class="vt-info-row"><span class="vt-label">1. ประเภท</span><span class="vt-value" id="vtType">-</span></div>
+                            <div class="vt-info-row"><span class="vt-label">2. ขนาด(ปอนด์)</span><span class="vt-value" id="vtSize">-</span></div>
+                            <div class="vt-info-row"><span class="vt-label">3. ชนิดที่ดับได้</span><span class="vt-value" id="vtAgent">-</span></div>
+                            <div class="vt-info-row"><span class="vt-label">4. วันที่รับถังเข้าใช้งาน</span><span class="vt-value" id="vtTankNumber">-</span></div>
+                            <div class="vt-info-row"><span class="vt-label">5. วันหมดอายุ</span><span class="vt-value" id="vtExpireDate">-</span></div>
+                        </div>
+                    </div>
+
+                    <div class="vt-section">
+                        <h3 class="vt-section-title-dark">ประวัติการทดสอบ</h3>
+                        <p class="vt-note">• ต้องทำการทดสอบแรงดันน้ำ หรือไฮโดรสแตติก (Hydrostatic Test) ของถังดับเพลิง ทุกๆ 5 ปี</p>
+                        <div class="vt-table-wrap">
+                            <table class="vt-table">
+                                <thead>
+                                    <tr>
+                                        <th>วัน / เดือน / ปี</th>
+                                        <th>ผลการทดสอบ</th>
+                                        <th>หมายเลขใบทดสอบ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="vtTestHistory">
+                                    <tr><td>&nbsp;</td><td></td><td></td></tr>
+                                    <tr><td>&nbsp;</td><td></td><td></td></tr>
+                                    <tr><td>&nbsp;</td><td></td><td></td></tr>
+                                    <tr><td>&nbsp;</td><td></td><td></td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="vt-photo-wrap">
+                        <div class="vt-photo" id="vtPhoto"><i class="fas fa-user-tie"></i></div>
+                    </div>
+                </div>
+
+                <div class="vt-col-right">
+                    <div class="vt-section">
+                        <h3 class="vt-section-title">สถานะ</h3>
+                        <div class="vt-info-row"><span class="vt-label">สถานะ</span><span class="vt-value" id="vtStatus">-</span></div>
+                        <div class="vt-info-row"><span class="vt-label">จุดติดตั้ง</span><span class="vt-value" id="vtLocation">-</span></div>
+                        <div class="vt-info-row"><span class="vt-label">โรงงาน</span><span class="vt-value" id="vtFactory">-</span></div>
+                    </div>
+
+                    <div class="vt-section">
+                        <h3 class="vt-section-title">การตรวจสอบประจำเดือน</h3>
+                        <div class="vt-table-wrap">
+                            <table class="vt-table compact">
+                                <thead>
+                                    <tr>
+                                        <th>วัน / เดือน / ปี</th>
+                                        <th>ผลการตรวจสอบ</th>
+                                        <th>การแก้ไข</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="vtMonthlyHistory">
+                                    <tr><td>&nbsp;</td><td></td><td></td></tr>
+                                    <tr><td>&nbsp;</td><td></td><td></td></tr>
+                                    <tr><td>&nbsp;</td><td></td><td></td></tr>
+                                    <tr><td>&nbsp;</td><td></td><td></td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="vt-section">
+                        <h3 class="vt-section-title">การตรวจสอบเดือนล่าสุด</h3>
+                        <div class="vt-checklist" id="vtChecklist"></div>
+                    </div>
+
+                    <div class="vt-inspector-row">
+                        <span class="vt-inspector-label">ผู้ตรวจ</span>
+                        <span class="vt-inspector-value" id="vtInspector">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="vt-footer">
+                <button class="vt-btn vt-btn-secondary" onclick="closeViewTank()">
+                    <i class="fas fa-arrow-left"></i> ย้อนกลับ
+                </button>
+                <button class="vt-btn vt-btn-primary" id="vtEditBtn">
+                    <i class="fas fa-edit"></i> แก้ไขข้อมูล
+                </button>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- ⭐ ========== MODAL 1: ลงทะเบียนใหม่ (Add) ========== -->
+<div id="addModal" class="modal">
+    <div class="modal-content">
+        <h3><i class="fas fa-plus-circle"></i> ลงทะเบียนถังดับเพลิงใหม่</h3>
+        <form id="addForm">
+
+            <div class="form-section-title">📋 ข้อมูลอุปกรณ์ (กรอกให้ครบ)</div>
+
+            <div class="form-row">
+                <div class="form-field">
+                    <label>ID (อัตโนมัติ)</label>
+                    <input type="text" id="addId" readonly>
+                </div>
+                
+                <!-- ⭐ ซ่อนช่องลำดับ (ยังส่งค่าไป Backend) -->
+                <input type="hidden" id="addSeq" value="">
+             
+                <div class="form-field">
+                    <label>🏭 โรงงาน</label>
+                    <select id="addFactory">
+                        <option value="">-- เลือกโรงงาน --</option>
+                        <option>โรงงานที่ 1</option>
+                        <option>โรงงานที่ 2</option>
+                        <option>โรงงานที่ 3</option>
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label>📍 โซน</label>
+                    <input type="text" id="addZone" placeholder="เว้นว่างได้">
+                </div>
+                <div class="form-field">
+                    <label>🏢 จุดติดตั้งถังดับเพลิง</label>
+                    <input type="text" id="addLocation" placeholder="ตำแหน่งติดตั้ง">
+                </div>
+                <div class="form-field">
+                    <label>📸 รูปภาพ (ไม่เกิน 10 MB)</label>
+                    <input type="file" id="addImageFile" accept="image/*" 
+                        style="display:none;">
+                    <div id="addImagePreview" class="image-upload-box" onclick="document.getElementById('addImageFile').click()">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        <span>คลิกเพื่อแนบรูป</span>
+                        <small>JPG, PNG, WEBP · ไม่เกิน 10 MB</small>
+                    </div>
+                    <input type="hidden" id="addImage" value="">
+                </div>
+                <div class="form-field">
+                    <label>🏷️ ประเภทถัง</label>
+                    <select id="addType">
+                        <option value="">-- เลือก --</option>
+                        <option value="CO2">CO2</option>
+                        <option value="BF 2000">BF 2000</option>
+                        <option value="HALOTRION">HALOTRION</option>
+                        <option value="FORM">FORM</option>
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label>🧪 ชนิดที่ดับได้</label>
+                    <input type="text" id="addAgent" readonly placeholder="อัตโนมัติ">
+                </div>
+                <div class="form-field">
+                    <label>📦 ขนาด(ปอนด์)</label>
+                    <select id="addSize">
+                        <option value="10 lbs">10 lbs</option>
+                        <option value="15 lbs">15 lbs</option>
+                        <option value="20 lbs">20 lbs</option>
+                        <option value="9 ลิตร">9 ลิตร</option>
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label>📋 เกณฑ์มาตรฐาน</label>
+                    <input type="text" id="addStandard" readonly placeholder="อัตโนมัติ">
+                </div>
+                <div class="form-field">
+                    <label>🏭 วันที่รับถังเข้าใช้งาน </label>
+                    <input type="text" id="addTankNumber" placeholder="MFG-2024-001">
+                </div>
+                <div class="form-field">
+                    <label>⏳ วันหมดอายุ (อัตโนมัติ +15 ปี)</label>
+                    <input type="text" id="addExpireDate" readonly>
+                </div>
+                <div class="form-field">
+                    <label>✨ สถานะ</label>
+                    <select id="addStatus">
+                        <option value="ใช้งาน">ใช้งาน</option>
+                        <option value="Stock">Stock</option>
+                        <option value="ปรับปรุง">ปรับปรุง</option>
+                        <option value="ทิ้งทำลาย">ทิ้งทำลาย</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="modal-buttons">
+                <button type="button" id="closeAddModalBtn" class="btn-cancel">ยกเลิก</button>
+                <button type="submit" class="btn-primary" id="addSubmitBtn">
+                    <i class="fas fa-save"></i> บันทึก
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ⭐ ========== MODAL 2: อัพเดท (Edit) ========== -->
+<div id="editModal" class="modal">
+    <div class="modal-content">
+        <h3><i class="fas fa-sync-alt"></i> อัพเดทข้อมูลถังดับเพลิง</h3>
+        <form id="editForm">
+
+            <div class="form-section-title">📋 ข้อมูลอุปกรณ์ (อ่านเท่านั้น)</div>
+
+            <div class="form-row">
+                <div class="form-field">
+                    <label>ID</label>
+                    <input type="text" id="editId" readonly>
+                </div>
+                <input type="hidden" id="editSeq" value="">
+                <input type="hidden" id="editImage" value="">
+               
+                <div class="form-field">
+                    <label>ประเภทถัง</label>
+                    <input type="text" id="editType" readonly>
+                </div>
+                <div class="form-field">
+                    <label>ชนิดที่ดับได้</label>
+                    <input type="text" id="editAgent" readonly>
+                </div>
+                <div class="form-field">
+                    <label>ขนาด(ปอนด์)</label>
+                    <input type="text" id="editSize" readonly>
+                </div>
+                <div class="form-field">
+                    <label>เกณฑ์มาตรฐาน</label>
+                    <input type="text" id="editStandard" readonly>
+                </div>
+                <div class="form-field">
+                    <label>วันที่รับถังเข้าใช้งาน</label>
+                    <input type="text" id="editTankNumber" readonly>
+                </div>
+                <div class="form-field">
+                    <label>วันหมดอายุ (อัตโนมัติ +15 ปี)</label>
+                    <input type="text" id="editExpireDate" readonly>
+                </div>
+            </div>
+
+            <div class="form-section-title editable">✏️ แก้ไขข้อมูลได้</div>
+
+            <div class="form-row editable-row">
+                <div class="form-field">
+                    <label>🏭 โรงงาน</label>
+                    <select id="editFactory">
+                        <option value="">-- เลือกโรงงาน --</option>
+                        <option>โรงงานที่ 1</option>
+                        <option>โรงงานที่ 2</option>
+                        <option>โรงงานที่ 3</option>
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label>📍 โซน</label>
+                    <input type="text" id="editZone" placeholder="เว้นว่างได้">
+                </div>
+                <div class="form-field">
+                    <label>🏢 จุดติดตั้งถังดับเพลิง</label>
+                    <input type="text" id="editLocation" placeholder="ตำแหน่งติดตั้ง">
+                </div>
+                <div class="form-field">
+                    <label>📅 วันที่ทดสอบล่าสุด</label>
+                    <input type="date" id="editLastTestDate">
+                </div>
+                <div class="form-field">
+                    <label>🔢 หมายเลขทดสอบ</label>
+                    <input type="text" id="editTestNumber" placeholder="TEST-XXXX">
+                </div>
+                <div class="form-field">
+                    <label>✨ สถานะ</label>
+                    <select id="editStatus">
+                        <option value="ใช้งาน">ใช้งาน</option>
+                        <option value="Stock">Stock</option>
+                        <option value="ปรับปรุง">ปรับปรุง</option>
+                        <option value="ทิ้งทำลาย">ทิ้งทำลาย</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="modal-buttons">
+                <button type="button" id="closeEditModalBtn" class="btn-cancel">ยกเลิก</button>
+                <button type="submit" class="btn-primary" id="editSubmitBtn">
+                    <i class="fas fa-save"></i> บันทึกการอัพเดท
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- MODAL ขยายรูป -->
+<div id="imageFullscreen" class="image-fullscreen" onclick="closeImageFullscreen()">
+    <button class="close-btn" onclick="closeImageFullscreen(event)">
+        <i class="fas fa-times"></i>
+    </button>
+    <img id="fullscreenImg" src="" alt="Tank">
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
