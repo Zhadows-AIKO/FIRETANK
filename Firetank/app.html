@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CyberFire · ระบบตรวจสอบถังดับเพลิง 2026</title>
+    <link rel="icon" href="data:,">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    
+    <style>
+        /* ============================================================
+           RESET
+           ============================================================ */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #e8f1f8 0%, #d4e5f0 100%);
+            font-family: 'Inter', 'Sarabun', sans-serif;
+            color: #1e293b;
+        }
+        
+        /* ============================================================
+           APP LAYOUT
+           ============================================================ */
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            width: 100%;
+        }
+        
+        /* ============================================================
+           TOP BAR (ใหม่ — Dashboard + Tabs)
+           ============================================================ */
+        .app-header {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(20px);
+            padding: 14px 24px;
+            border-bottom: 2px solid #dbeafe;
+            box-shadow: 0 4px 20px rgba(30, 58, 95, 0.08);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 20px;
+            flex-wrap: wrap;
+            z-index: 100;
+        }
+        
+        /* ---------- ด้านซ้าย: Dashboard Title ---------- */
+        .app-title-block {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            min-width: 0;
+        }
+        
+        .app-title {
+            font-size: 1.4rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #1e40af, #3b82f6);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            white-space: nowrap;
+        }
+        
+        .app-title i {
+            font-size: 1.3rem;
+            color: #3b82f6;
+            -webkit-text-fill-color: #3b82f6;
+        }
+        
+        .app-subtitle {
+            font-size: 0.78rem;
+            color: #64748b;
+            font-weight: 500;
+        }
+        
+        /* ---------- ด้านขวา: Tabs ---------- */
+        .app-tabs {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            background: #f1f5f9;
+            padding: 5px;
+            border-radius: 60px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .app-tab-btn {
+            background: transparent;
+            border: none;
+            padding: 10px 22px;
+            border-radius: 60px;
+            font-weight: 700;
+            font-size: 0.9rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+            color: #475569;
+            font-family: inherit;
+            white-space: nowrap;
+        }
+        
+        .app-tab-btn:hover {
+            background: #e2e8f0;
+            color: #1e40af;
+        }
+        
+        .app-tab-btn.active {
+            background: linear-gradient(125deg, #1fb0f3, #60c5f5);
+            color: #ffffff;
+            box-shadow: 0 6px 16px rgba(31, 176, 243, 0.35);
+        }
+        
+        /* ============================================================
+           IFRAME WRAPPER
+           ============================================================ */
+        .app-content {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .app-iframe {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: none;
+            background: #e8f1f8;
+        }
+        
+        .app-iframe.active {
+            display: block;
+        }
+        
+        /* ============================================================
+           LOADING OVERLAY
+           ============================================================ */
+        .app-loading {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(232, 241, 248, 0.95);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            z-index: 50;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        
+        .app-loading.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+        
+        .app-loading i {
+            font-size: 2.5rem;
+            color: #3b82f6;
+        }
+        
+        .app-loading span {
+            font-size: 0.9rem;
+            color: #64748b;
+            font-weight: 600;
+        }
+        
+        /* ============================================================
+           RESPONSIVE
+           ============================================================ */
+        @media (max-width: 768px) {
+            .app-header {
+                padding: 10px 14px;
+                gap: 12px;
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .app-title {
+                font-size: 1.1rem;
+                justify-content: center;
+            }
+            
+            .app-subtitle {
+                font-size: 0.7rem;
+                text-align: center;
+            }
+            
+            .app-tabs {
+                justify-content: center;
+                width: 100%;
+            }
+            
+            .app-tab-btn {
+                padding: 8px 14px;
+                font-size: 0.75rem;
+                gap: 5px;
+                flex: 1;
+                justify-content: center;
+            }
+            
+            .app-tab-btn i {
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+
+    <!-- ============================================================
+         TOP BAR — Dashboard Title (ซ้าย) + Tabs (ขวา)
+         ============================================================ -->
+    <div class="app-header">
+        
+        <!-- ด้านซ้าย: ชื่อ Dashboard -->
+        <div class="app-title-block">
+            <div class="app-title">
+                <i class="fas fa-chart-line"></i>
+               ระบบถังดับเพลิง
+            </div>
+            <div class="app-subtitle">
+                บริษัท ศูนย์บริการเหล็กสยาม จำกัด (มหาชน)
+                <p>Mungkorn chaopraya team</p>
+            </div>
+        </div>
+        
+        <!-- ด้านขวา: Tabs -->
+        <div class="app-tabs">
+            <button class="app-tab-btn active" data-tab="register" onclick="switchTab('register')">
+                <i class="fas fa-database"></i> ทะเบียนถังดับเพลิง
+            </button>
+            
+            <button class="app-tab-btn" data-tab="inspection" onclick="switchTab('inspection')">
+                <i class="fas fa-fire-extinguisher"></i> ตรวจสอบประจำเดือน
+            </button>
+        </div>
+        
+    </div>
+    
+    <!-- ============================================================
+         IFRAME CONTENT
+         ============================================================ -->
+    <div class="app-content">
+        
+        <div class="app-loading" id="appLoading">
+            <i class="fas fa-spinner fa-pulse"></i>
+            <span>กำลังโหลด...</span>
+        </div>
+        
+        <iframe 
+            id="iframe-register"
+            class="app-iframe active"
+            data-src="index.html"
+            title="ทะเบียนถังดับเพลิง"
+            frameborder="0"
+            allow="geolocation">
+        </iframe>
+        
+        <iframe 
+            id="iframe-inspection"
+            class="app-iframe"
+            data-src="inspection.html"
+            title="ตรวจสอบถังดับเพลิงประจำเดือน"
+            frameborder="0"
+            allow="geolocation">
+        </iframe>
+        
+    </div>
+
+</div>
+
+<script>
+// ============================================================
+// SHARED CONFIG
+// ============================================================
+const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxlaLPaN1F2G7DiA4giNotp2G_LTYKoMMbVBRTGdwUp6RJtkm3RsFgih7rw12ZDM1Pm4g/exec';
+
+// ============================================================
+// STATE
+// ============================================================
+let currentTab = 'register';
+const loadedIframes = new Set();
+
+// ============================================================
+// SWITCH TAB
+// ============================================================
+function switchTab(tabName) {
+    if (tabName === currentTab) return;
+    
+    currentTab = tabName;
+    
+    document.querySelectorAll('.app-tab-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.tab === tabName);
+    });
+    
+    document.querySelectorAll('.app-iframe').forEach(frame => {
+        frame.classList.toggle('active', frame.id === `iframe-${tabName}`);
+    });
+    
+    const frame = document.getElementById(`iframe-${tabName}`);
+    if (frame && !loadedIframes.has(tabName)) {
+        loadIframe(frame, tabName);
+    }
+}
+
+// ============================================================
+// LOAD IFRAME WITH WEB_APP_URL
+// ============================================================
+function loadIframe(frame, tabName) {
+    const baseSrc = frame.dataset.src || '';
+    if (!baseSrc) return;
+    
+    document.getElementById('appLoading').classList.add('active');
+    
+    const url = baseSrc + '?url=' + encodeURIComponent(WEB_APP_URL);
+    
+    console.log(`📋 โหลด ${baseSrc} + WEB_APP_URL`);
+    
+    frame.src = url;
+    loadedIframes.add(tabName);
+    
+    frame.onload = function() {
+        document.getElementById('appLoading').classList.remove('active');
+        console.log(`✅ โหลด ${baseSrc} สำเร็จ`);
+    };
+    
+    setTimeout(() => {
+        document.getElementById('appLoading').classList.remove('active');
+    }, 5000);
+}
+
+// ============================================================
+// INIT
+// ============================================================
+window.addEventListener('DOMContentLoaded', () => {
+    console.log('🚀 app.html initialized');
+    console.log('🔗 WEB_APP_URL:', WEB_APP_URL);
+    
+    const firstFrame = document.getElementById('iframe-register');
+    if (firstFrame) {
+        loadIframe(firstFrame, 'register');
+    }
+});
+
+// ============================================================
+// LISTEN — รับข้อความจาก iframe
+// ============================================================
+window.addEventListener('message', (event) => {
+    const data = event.data;
+    if (!data || typeof data !== 'object') return;
+    
+    console.log('📨 ข้อความจาก iframe:', data);
+    
+    if (data.action === 'switchTab' && data.tab) {
+        switchTab(data.tab);
+    }
+});
+</script>
+
+</body>
+</html>

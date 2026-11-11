@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>ตรวจสอบถังดับเพลิง | CyberFire 2026</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="inspection.css">
+    <script>
+    // ⭐ อ่าน WEB_APP_URL จาก query string (app.html ส่งมา)
+        (function() {
+            const params = new URLSearchParams(window.location.search);
+            const url = params.get('url');
+            if (url) {
+                window.CYBERFIRE_WEB_APP_URL = decodeURIComponent(url);
+                console.log('📥 รับ WEB_APP_URL จาก app.html');
+            }
+        })();
+    </script>
+</head>
+<body>
+
+<!-- ⭐ ========== VIEW 1: DASHBOARD ========== -->
+<div id="dashboardView" class="view active-view">
+
+    <div class="inspection-dashboard">
+
+        <div class="dash-header">
+            <div class="dash-title">
+                <i class="fas fa-chart-pie"></i>
+                <div>
+                    <h2>ภาพรวมการตรวจสอบ</h2>
+                    <p>ประจำเดือน <span id="dashMonth">-</span></p>
+                </div>
+            </div>
+            <button class="dash-refresh" onclick="loadDashboard()" title="รีเฟรช">
+                <i class="fas fa-sync-alt"></i>
+            </button>
+        </div>
+
+        <div class="dash-stats">
+            <div class="dash-stat">
+                <div class="dash-stat-icon"><i class="fas fa-fire-extinguisher"></i></div>
+                <div class="dash-stat-value" id="dashTotal">0</div>
+                <div class="dash-stat-label">ทั้งหมด</div>
+            </div>
+            <div class="dash-stat success">
+                <div class="dash-stat-icon"><i class="fas fa-check-circle"></i></div>
+                <div class="dash-stat-value" id="dashInspected">0</div>
+                <div class="dash-stat-label">ตรวจแล้ว</div>
+            </div>
+            <div class="dash-stat warning">
+                <div class="dash-stat-icon"><i class="fas fa-clock"></i></div>
+                <div class="dash-stat-value" id="dashPending">0</div>
+                <div class="dash-stat-label">ยังไม่ตรวจ</div>
+            </div>
+            <div class="dash-stat danger">
+                <div class="dash-stat-icon"><i class="fas fa-exclamation-triangle"></i></div>
+                <div class="dash-stat-value" id="dashAbnormal">0</div>
+                <div class="dash-stat-label">ผิดปกติ</div>
+            </div>
+        </div>
+
+        <div class="dash-charts">
+            <div class="dash-chart-card">
+                <div class="dash-chart-title"><i class="fas fa-chart-pie"></i> สัดส่วนการตรวจ</div>
+                <canvas id="dashPieChart"></canvas>
+            </div>
+            <div class="dash-chart-card">
+                <div class="dash-chart-title"><i class="fas fa-chart-bar"></i> แยกตามโรงงาน</div>
+                <canvas id="dashBarChart"></canvas>
+            </div>
+        </div>
+
+        <div class="dash-actions">
+            <button class="dash-btn primary" onclick="showForm()">
+                <i class="fas fa-play-circle"></i> เริ่มตรวจถัง
+            </button>
+            <button class="dash-btn pending" onclick="openPendingModal()">
+                <i class="fas fa-list"></i> ดูถังที่ยังไม่ตรวจ
+                <span class="dash-badge" id="pendingBadge">0</span>
+            </button>
+            <button class="dash-btn abnormal" onclick="openAbnormalModal()">
+                <i class="fas fa-exclamation-triangle"></i> ดูรายการผิดปกติ
+                <span class="dash-badge danger" id="abnormalBadge">0</span>
+            </button>
+        </div>
+
+    </div>
+
+</div>
+
+<!-- ⭐ ========== VIEW 2: ฟอร์มตรวจ ========== -->
+<div id="formView" class="view">
+
+    <div class="document-card">
+
+        <div class="form-back-bar">
+            <button onclick="showDashboard()" class="btn-back-dash">
+                <i class="fas fa-arrow-left"></i> กลับ Dashboard
+            </button>
+            <div class="form-back-title">📋 แบบฟอร์มตรวจถัง</div>
+        </div>
+
+        <div class="title-section">
+            <div class="thai-main-title">ตรวจสอบถังดับเพลิง</div>
+            <div class="eng-sub">FIRE EXTINGUISHER INSPECTION TAG</div>
+        </div>
+
+        <!-- Agent Strip -->
+        <div class="agent-strip">
+            <div class="agent-badge"><span class="agent-name">CO2</span><span class="agent-clean">CARBON DIOXIDE</span></div>
+            <div class="agent-badge"><span class="agent-name">BF2000</span><span class="agent-clean">CLEAN AGENT</span></div>
+            <div class="agent-badge"><span class="agent-name">HALITRON</span><span class="agent-clean">CLEAN AGENT</span></div>
+            <div class="agent-badge"><span class="agent-name">FOAM</span><span class="agent-clean">CLEAN AGENT</span></div>
+        </div>
+
+        <!-- DETAILS GRID -->
+        <div class="details-grid">
+            <div class="field-group">
+                <div class="field-label">🔢 หมายเลขถัง (No.) / ID</div>
+                <input type="text" id="tankIdInput" class="field-value" placeholder="เช่น 0001 หรือ EXT-001" autocomplete="off">
+                <div class="help-text">🔍 ป้อนหมายเลขถัง แล้วกด Enter หรือคลิกนอกช่อง เพื่อโหลดข้อมูล</div>
+                <div id="idStatusMsg" class="id-status-msg">🟢 พร้อมทำงาน</div>
+            </div>
+            <div class="field-group">
+                <div class="field-label">📍 ตำแหน่งติดตั้ง (Location) <span style="color:#C44;">*GPS อัตโนมัติ</span></div>
+                <input type="text" id="locationField" class="field-value readonly-field" readonly placeholder="กดปุ่ม GPS หรือรอระบุ">
+                <button type="button" id="getGpsBtn" class="gps-btn">📡 ระบุตำแหน่งปัจจุบัน (GPS)</button>
+            </div>
+            <div class="field-group">
+                <div class="field-label">📦 ขนาดถังปอนด์ (Size)</div>
+                <input type="text" id="sizeField" class="field-value readonly-field" readonly placeholder="คอลัมน์ ขนาด(ปอนด์)">
+            </div>
+            <div class="field-group">
+                <div class="field-label">📅 วันที่ / หมายเลขวันที่ถัง</div>
+                <input type="text" id="installDateField" class="field-value readonly-field" readonly placeholder="คอลัมน์ หมายเลขวันที่ถัง">
+            </div>
+            <div class="field-group">
+                <div class="field-label">👤 ผู้ดูแล (Responsible)</div>
+                <input type="text" id="responsibleField" class="field-value readonly-field" readonly placeholder="ข้อมูลเพิ่มเติม">
+            </div>
+        </div>
+
+        <!-- MONTHLY INSPECTION -->
+        <div class="monthly-box">
+            <div class="section-head">📋 ตรวจสอบประจำเดือน (Monthly Inspection)</div>
+            <div id="inspectionRadioList"></div>
+
+            <div id="fixNoteSection" class="fix-note-section" style="display: none;">
+                <div class="fix-note-head">
+                    <i class="fas fa-tools"></i> 
+                    <span>ระบุการแก้ไข / หมายเหตุ (เนื่องจากพบรายการผิดปกติ)</span>
+                </div>
+                <textarea 
+                    id="fixNoteInput" 
+                    class="fix-note-input" 
+                    placeholder="เช่น เปลี่ยนสายฉีดใหม่ / แจ้งช่างซ่อม / เปลี่ยนถังใหม่ ฯลฯ"
+                    rows="3"
+                ></textarea>
+                <div class="fix-note-hint">
+                    💡 ข้อมูลนี้จะถูกบันทึกในคอลัมน์ "หมายเหตุ"
+                </div>
+            </div>
+        </div>
+
+        <!-- ⭐ SPECS + PHOTO -->
+        <div class="specs-container">
+
+            <!-- 1. มาตรฐานอ้างอิง -->
+            <div class="standard-card">
+                <h4>📌 มาตรฐานอ้างอิง</h4>
+                <div class="nfpa">NFPA 10</div>
+                <div style="font-size:0.75rem; margin-top: 6px;">Standard for Portable Fire Extinguishers</div>
+                <div style="margin-top: 12px;">✅ ตรวจสอบอย่างน้อยเดือนละ 1 ครั้ง</div>
+            </div>
+
+            <!-- ⭐ 2. ถ่ายรูปถัง (ใหม่) -->
+            <div class="photo-card">
+                <h4>📷 ถ่ายรูปถัง</h4>
+                
+                <input type="file" id="inspectionPhotoFile" accept="image/*" 
+                       capture="environment" style="display:none;">
+                
+                <div class="photo-capture-box" id="inspectionPhotoPreview"
+                     onclick="document.getElementById('inspectionPhotoFile').click()">
+                    <i class="fas fa-camera"></i>
+                    <span>คลิกเพื่อถ่ายรูป</span>
+                    <small>JPG, PNG · ไม่เกิน 10 MB</small>
+                </div>
+                
+                <button type="button" class="photo-clear-btn" 
+                        id="clearPhotoBtn" onclick="clearInspectionPhoto(event)"
+                        style="display:none;">
+                    <i class="fas fa-times"></i> ลบรูป
+                </button>
+            </div>
+
+            <!-- 3. ข้อกำหนดเฉพาะ -->
+            <div class="spec-detail">
+                <div style="font-weight:700; margin-bottom: 12px;">⚠️ ข้อกำหนดเฉพาะ</div>
+                <div class="agent-spec">
+                    <strong>CO2</strong>
+                    <p>✓ ใช้กับไฟประเภท B, C | ✓ ไม่ทิ้งคราบ | ✗ ห้ามใช้กับ A, D | ⚠️ ระบายอากาศหลังใช้งาน</p>
+                </div>
+                <div class="agent-spec">
+                    <strong>BF2000</strong>
+                    <p>✓ ใช้กับไฟประเภท B, C | ✗ ห้ามใช้กับ D</p>
+                </div>
+                <div class="agent-spec">
+                    <strong>HALITRON</strong>
+                    <p>✓ ใช้กับไฟ A, B, C | ✓ ไม่ทิ้งคราบ | ⚠️ ระบายอากาศหลังใช้งาน</p>
+                </div>
+                <div class="agent-spec">
+                    <strong>FOAM</strong>
+                    <p>✓ ใช้กับไฟประเภท A, B | ✗ ไม่ควรใช้กับ C และ D</p>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- ACTION PANEL -->
+        <div class="action-panel">
+            <div class="inspector-field">
+                <label>🧑‍🔧 ผู้ตรวจสอบ (Inspector):</label>
+                <input type="text" id="inspectorName" placeholder="ชื่อผู้ตรวจ" value="">
+            </div>
+            <div class="summary-indicator" id="summaryIndicator">✅ สถานะโดยรวม: ปกติ</div>
+            <button class="btn-submit" id="submitBtn">💾 บันทึกการตรวจ</button>
+            <div id="statusMsg" class="status-msg">✅ พร้อมทำงาน</div>
+        </div>
+
+        <!-- WARNING -->
+        <div class="warning-footer">
+            <div>⚠️ คำเตือน • ห้ามดัดแปลงถัง • ตรวจสอบเดือนละครั้ง</div>
+            <div style="display: flex; gap: 12px;">
+                <span>🚫 หากผิดปกติ ห้ามใช้งาน แจ้งผู้ดูแล</span>
+            </div>
+        </div>
+        <div class="footer-caption">🔧 CyberFire · ระบบตรวจสอบถังดับเพลิงอัจฉริยะ 2026</div>
+
+    </div>
+
+</div>
+
+<!-- ⭐ ========== MODAL: ถังที่ยังไม่ตรวจ ========== -->
+<div id="pendingModal" class="dash-modal">
+    <div class="dash-modal-content">
+        <div class="dash-modal-header">
+            <h3><i class="fas fa-clock"></i> ถังที่ยังไม่ตรวจ (<span id="pendingCount">0</span>)</h3>
+            <button onclick="closePendingModal()" class="dash-modal-close">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="dash-modal-body" id="pendingList">
+            <!-- JS จะเติม -->
+        </div>
+    </div>
+</div>
+
+<!-- ⭐ ========== MODAL: รายการผิดปกติ ========== -->
+<div id="abnormalModal" class="dash-modal">
+    <div class="dash-modal-content">
+        <div class="dash-modal-header">
+            <h3><i class="fas fa-exclamation-triangle"></i> รายการผิดปกติ</h3>
+            <button onclick="closeAbnormalModal()" class="dash-modal-close">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="dash-modal-body" id="abnormalList">
+            <!-- JS จะเติม -->
+        </div>
+    </div>
+</div>
+
+<script src="inspection.js"></script>
+</body>
+</html>
